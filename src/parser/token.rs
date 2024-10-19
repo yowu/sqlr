@@ -6,5 +6,5 @@ pub enum Token {
     Punctuation(char),
     Literal(String),
     Operator(String),
-    Number(String),
+    Numeric(String),
 }

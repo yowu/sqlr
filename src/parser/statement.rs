@@ -1,26 +1,10 @@
 use std::iter::Peekable;
 
-use crate::ast::{ColumnDefinition, CreateTable, DataType, Select, Statement};
-use crate::command::Command;
-use crate::token::Token;
-use crate::tokenizer::tokenize;
+use super::token::Token;
+use crate::db::data::{Column, DataType};
+use crate::db::statement::{CreateTable, Insert, Select, Statement};
 
-pub fn parse_statement(statement: &str) -> Result<Statement, String> {
-    let tokens = tokenize(statement);
-    let mut iter = tokens.iter().peekable();
-
-    match iter.peek() {
-        Some(Token::Keyword(keyword)) if keyword.to_uppercase() == "CREATE" => {
-            parse_create(&mut iter)
-        }
-        Some(Token::Keyword(keyword)) if keyword.to_uppercase() == "SELECT" => {
-            parse_select(&mut iter)
-        }
-        _ => Err("Unknown statement".to_string()),
-    }
-}
-
-fn parse_create<'a>(
+pub fn parse_create<'a>(
     iter: &mut Peekable<impl Iterator<Item = &'a Token>>,
 ) -> Result<Statement, String> {
     iter.next(); // Consume "CREATE"
@@ -43,7 +27,7 @@ fn parse_create<'a>(
 ```
 */
 
-fn parse_create_table<'a>(
+pub fn parse_create_table<'a>(
     iter: &mut Peekable<impl Iterator<Item = &'a Token>>,
 ) -> Result<Statement, String> {
     iter.next(); // Consume "TABLE"
@@ -72,7 +56,7 @@ fn parse_create_table<'a>(
         // Expect data type
         let data_type = parse_data_type(iter)?;
 
-        columns.push(ColumnDefinition {
+        columns.push(Column {
             name: column_name,
             data_type,
         });
@@ -102,11 +86,11 @@ fn parse_data_type<'a>(
 ) -> Result<DataType, String> {
     match iter.next() {
         Some(Token::DataType(data_type)) => match data_type.to_uppercase().as_str() {
-            "INT" => Ok(DataType::Int),
+            "INT" | "INTEGER" => Ok(DataType::Int),
             "DATE" => Ok(DataType::Date),
             "FLOAT" => Ok(DataType::Float),
             "CHAR" => Ok(DataType::Char),
-            "BOOLEAN" => Ok(DataType::Boolean),
+            "BOOLEAN" | "BOOL" => Ok(DataType::Boolean),
             "VARCHAR" => {
                 match iter.next() {
                     Some(Token::Punctuation('(')) => {}
@@ -115,7 +99,7 @@ fn parse_data_type<'a>(
 
                 // Expect number
                 let size = match iter.next() {
-                    Some(Token::Number(size)) => size
+                    Some(Token::Numeric(size)) => size
                         .parse::<usize>()
                         .map_err(|_| "Invalid size in VARCHAR".to_string())?,
                     _ => return Err("Expected size in VARCHAR".to_string()),
@@ -136,7 +120,7 @@ fn parse_data_type<'a>(
     }
 }
 
-fn parse_select<'a>(
+pub fn parse_select<'a>(
     iter: &mut Peekable<impl Iterator<Item = &'a Token>>,
 ) -> Result<Statement, String> {
     iter.next(); // Consume "SELECT"
@@ -162,9 +146,47 @@ fn parse_select<'a>(
     }))
 }
 
-pub fn parse_command(input: &str) -> Command {
-    match input {
-        ".exit" => Command::Exit,
-        _ => Command::Unknown(input.to_string()),
+pub fn parse_insert<'a>(
+    iter: &mut Peekable<impl Iterator<Item = &'a Token>>,
+) -> Result<Statement, String> {
+    iter.next(); // Consume "INSERT"
+
+    match iter.next() {
+        Some(Token::Keyword(keyword)) if keyword.to_uppercase() == "INTO" => {}
+        _ => return Err("Expected 'INTO' keyword".to_string()),
     }
+
+    let table_name = match iter.next() {
+        Some(Token::Identifier(name)) => name.clone(),
+        _ => return Err("Expected table name".to_string()),
+    };
+
+    match iter.next() {
+        Some(Token::Punctuation('(')) => {}
+        _ => return Err("Expected '('".to_string()),
+    }
+
+    let mut values = Vec::new();
+    loop {
+        match iter.next() {
+            Some(Token::Literal(value)) => values.push(value.clone()),
+            Some(Token::Numeric(value)) => values.push(value.clone()),
+            Some(token) => return Err(format!("Expected value, got {:?}", token)),
+            _ => return Err("Unexpected end for value".to_string()),
+        }
+
+        match iter.peek() {
+            Some(Token::Punctuation(',')) => {
+                iter.next(); // Consume ","
+                continue;
+            }
+            Some(Token::Punctuation(')')) => {
+                iter.next(); // Consume ")"
+                break;
+            }
+            _ => return Err("Expected ',' or ')'".to_string()),
+        }
+    }
+
+    Ok(Statement::Insert(Insert { table_name, values }))
 }
