@@ -91,8 +91,7 @@ impl Value {
                 } else {
                     Ok(Value::Varchar(value.to_string()))
                 }
-            }
-            // Add other data types as needed
+            } // Add other data types as needed
         }
     }
 }

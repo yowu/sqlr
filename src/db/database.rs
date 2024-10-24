@@ -1,9 +1,12 @@
 use super::data::{Column, Row};
 use super::statement::{CreateTable, Insert, Select};
-use super::Database;
+use super::table::Table;
 use std::collections::HashMap;
 
-use super::table::Table;
+#[derive(Debug)]
+pub struct Database {
+    pub tables: HashMap<String, Table>,
+}
 
 impl Database {
     pub fn new() -> Self {
@@ -12,13 +15,12 @@ impl Database {
         }
     }
 
-    pub fn create_table(&mut self, create_table: CreateTable) {
-        let table = Table {
-            name: create_table.table_name.clone(),
-            columns: create_table.columns,
-            rows: Vec::new(),
-        };
-        self.tables.insert(create_table.table_name, table);
+    pub fn create_table(&mut self, create_table: &CreateTable) {
+        let table = Table::new(
+            create_table.table_name.clone(),
+            create_table.columns.clone(),
+        );
+        self.tables.insert(table.name.clone(), table);
     }
 
     /*
@@ -31,15 +33,15 @@ impl Database {
     }
     */
 
-    pub fn insert_into_table(&mut self, insert: Insert) -> Result<(), String> {
+    pub fn insert_into_table(&mut self, insert: &Insert) -> Result<(), String> {
         if let Some(table) = self.tables.get_mut(&insert.table_name) {
-            table.insert(insert)
+            table.insert(&insert.values)
         } else {
             Err(format!("Table '{}' does not exist.", insert.table_name))
         }
     }
 
-    pub fn select_from_table(&self, select: Select) -> Result<Vec<Row>, String> {
+    pub fn select_from_table(&self, select: &Select) -> Result<Vec<Row>, String> {
         if let Some(table) = self.tables.get(&select.table_name) {
             table.select()
         } else {

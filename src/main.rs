@@ -2,7 +2,7 @@ mod db;
 mod parser;
 mod ui;
 
-use db::Database;
+use db::database::Database;
 use ui::run_ui_loop;
 
 fn main() {

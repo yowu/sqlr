@@ -1,7 +1,7 @@
 use handlers::{process_commands, process_statement};
 use input::{print_prompt, read_user_input};
 
-use crate::db::Database;
+use crate::db::database::Database;
 mod handlers;
 mod input;
 
